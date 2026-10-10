@@ -1,4 +1,6 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu'))()
+-- HUB SOMBRA v5.0 | by Equipe Sombra
+-- Corrigido o link oficial de carregamento do Rayfield
+local Rayfield = loadstring(game:HttpGet('https://githubusercontent.com'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Sombra Hub | Blox Fruits",
@@ -32,10 +34,13 @@ end
 -- Função para Equipar a Arma Automaticamente (Estilo de Luta/Espada)
 local function EquipWeapon()
     if _G.EquipWeapon and Player.Character and not Player.Character:FindFirstChildOfClass("Tool") then
-        for _, tool in ipairs(Player.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and (tool.ToolTip == "Melee" or tool.ToolTip == "Sword" or tool.ToolTip == "Blox Fruit") then
-                Player.Character.Humanoid:EquipTool(tool)
-                break
+        local backpack = Player:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in ipairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") and (tool.ToolTip == "Melee" or tool.ToolTip == "Sword" or tool.ToolTip == "Blox Fruit" or tool.Name == "Combat") then
+                    Player.Character.Humanoid:EquipTool(tool)
+                    break
+                end
             end
         end
     end
@@ -43,12 +48,15 @@ end
 
 -- Função para Pegar Dados da Quest Dinamicamente (Base Sea 1)
 local function GetQuestData()
+    if not Player:FindFirstChild("Data") or not Player.Data:FindFirstChild("Level") then
+        return "BanditQuest1", "Bandit", 1, CFrame.new(1059, 16, 1550)
+    end
+    
     local level = Player.Data.Level.Value
     if level >= 1 and level < 10 then
-        return "BanditQuest1", "Bandit", 1, CFrame.new(1059, 16, 1550) -- Exemplo de coordenadas reais do jogo
+        return "BanditQuest1", "Bandit", 1, CFrame.new(1059, 16, 1550)
     elseif level >= 10 and level < 15 then
-        return "MonkeyQuest1", "Monkey", 1, CFrame.new(-1598, 37, 153)
-    -- Adicione outras condições de nível conforme necessário aqui
+        return "JungleQuest", "Monkey", 1, CFrame.new(-1598, 37, 153)
     else
         return "BanditQuest1", "Bandit", 1, CFrame.new(1059, 16, 1550) -- Padrão Inicial
     end
@@ -75,54 +83,56 @@ FarmTab:CreateToggle({
    Callback = function(Value)
        _G.AutoFarm = Value
        
-       task.spawn(function()
-           while _G.AutoFarm do
-               task.wait(0.1)
-               pcall(function()
-                   -- 1. Verificar se já tem uma Quest ativa na UI do jogo
-                   local hasQuest = Player.PlayerGui.Main.Quest.Visible
-                   local questName, mobName, questId, npcPosition = GetQuestData()
-                   
-                   if not hasQuest then
-                       -- Ir até o NPC pegar a Quest
-                       ToTween(npcPosition)
-                       task.wait(0.5)
-                       -- Dispara o evento nativo do Blox Fruits para aceitar quest
-                       ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", questName, questId)
-                   else
-                       -- 2. Procurar o Monstro no mapa
-                       local mobFound = false
-                       for _, v in ipairs(workspace.Enemies:GetChildren()) do
-                           if v.Name == mobName and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
-                               mobFound = true
-                               EquipWeapon()
-                               
-                               -- Prender o player acima do mob para farmar em segurança
-                               Player.Character.HumanoidRootPart.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 11, 0)
-                               
-                               -- Executar cliques/ataques
-                               local virtualUser = game:GetService("VirtualUser")
-                               virtualUser:CaptureController()
-                               virtualUser:ClickButton1(Vector2.new(851, 158)) -- Simula clique físico na tela
-                               break
-                           end
-                       end
+       if Value then
+           task.spawn(function()
+               while _G.AutoFarm do
+                   task.wait(0.1)
+                   pcall(function()
+                       -- Verifica de forma segura se a UI de Quest está ativa
+                       local mainGui = Player.PlayerGui:FindFirstChild("Main")
+                       local hasQuest = mainGui and mainGui:FindFirstChild("Quest") and mainGui.Quest.Visible
+                       local questName, mobName, questId, npcPosition = GetQuestData()
                        
-                       -- Se não achar mobs vivos, teleporta para a zona de spawn deles
-                       if not mobFound then
-                           for _, v in ipairs(workspace._WorldOrigin.EnemySpawns:GetChildren()) do
-                               if v.Name == mobName then
-                                   ToTween(v.CFrame)
-                                   break
-                               end
+                       if not hasQuest then
+                           -- Ir até o NPC pegar a Quest
+                           ToTween(npcPosition)
+                           if (Player.Character.HumanoidRootPart.Position - npcPosition.Position).Magnitude < 15 then
+                               task.wait(0.2)
+                               ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", questName, questId)
+                           end
+                       else
+                           -- Procurar o Monstro no mapa
+                           local mobFound = false
+                           local enemies = workspace:FindFirstChild("Enemies")
+                           
+                           if enemies then
+                               for _, v in ipairs(enemies:GetChildren()) do
+                                   if v.Name == mobName and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+                                       mobFound = true
+                                       EquipWeapon()
+                                       
+                                       -- Prender o player acima do mob para farmar em segurança
+                                       Player.Character.HumanoidRootPart.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 11, 0)
+                                       
+                                       -- Executar ataques repetidos
+                                       local virtualUser = game:GetService("VirtualUser")
+                                       virtualUser:CaptureController()
+                                       virtualUser:ClickButton1(Vector2.new(851, 158))
+                                       break
+                                   end
+                                end
+                           end
+                           
+                           -- Se não achar mobs vivos, vai até a posição padrão do NPC/área deles esperar o spawn
+                           if not mobFound then
+                               ToTween(npcPosition * CFrame.new(0, 20, 20))
                            end
                        end
-                   end
-               end)
-           end
-       end)
+                   end)
+               end
+           end)
+       end
    end,
 })
 
 Rayfield:LoadConfiguration()
-
